@@ -1,4 +1,5 @@
-<!-- vim:sw=144:tw=144:expandtab: -->
+<!-- vim:sw=144:tw=144:expandtab:
+-->
 
 ## Initial use case
 
@@ -28,7 +29,8 @@ Things to keep in mind:
 
 ## Fizzbuzz 2.0!
 
-Marketing comes back and is very excited about the sign up experience at FizzBuzz. But, they'd love it if the new user were sent an email with the current FizzBuzz 
+Marketing comes back and is very excited about the sign up experience at FizzBuzz. But, they'd love it if the new user were sent an email with
+the current FizzBuzz 
 
 
 # Links
