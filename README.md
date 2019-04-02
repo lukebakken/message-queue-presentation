@@ -32,10 +32,12 @@ Things to keep in mind:
 Marketing comes back and is very excited about the sign up experience at FizzBuzz. But, they'd love it if the new user were sent an email with
 the current FizzBuzz newsletter, and maybe a text message greeting too. Users love that.
 
-So, FizzBuzz dev updates the code for creating a new user:
+So, FizzBuzz dev updates the code for creating a new user. Now, all those services would be injected in the ctor most likely but you get the
+idea since this is coded in PseudoSharp™:
 
 ```
-HtmlResult create_user(HtmlFormData fd, IDbRepository db, ITwilioManager tmgr, IEmailService esvc, IObjectBlobService blobs) {
+HtmlResult create_user(HtmlFormData fd, IDbRepository db, ITwilioManager tmgr,
+                       IEmailService esvc, IObjectBlobService blobs) {
     var usr = new UserModel(fd.Name, fd.Address, fd.Phone, fd.Email);
     try {
         db.Create(usr);
@@ -61,6 +63,32 @@ Much more going on in version 2.0! What can we say about the additions?
 * Everyone could still sign up at once!
 * What else?
 
+## Can Haz Q
+
+After rolling out FizzBuzz 2.0 the email server went down several times and new users didn't get their copy of the newsletter. Support tickets
+went through the roof and finally the CTO went to the dev team and said "Fix it!". So the team read about message brokers and installed RabbitMQ
+in their environment. Now the code looks like this:
+
+```
+HtmlResult create_user(HtmlFormData fd, IMessageQueue mq) {
+    var usr = new UserModel(fd.Name, fd.Address, fd.Phone, fd.Email);
+    var event = new CreateUserEvent(usr);
+    mq.PublishEvent(event);
+    return new UserCreationInProgressView(usr);
+}
+```
+
+That's pretty nice, but what happened to the other actions? Several new services were deployed (Unix daemons / Windows services) that subscribe
+to the `CreateUserEvent` event. Here's the gist of it for the database service and the email service:
+
+```
+void ServiceInit(IMessageQueue mq) {
+    mq.Subscribe("users.create");
+}
+
+void HandleEvent(event) {
+}
+```
 
 # Links
 
