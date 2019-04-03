@@ -14,7 +14,7 @@ Pretty standard. Here's what a web controller might look like:
 
 ```
 HtmlResult create_user(HtmlFormData fd, IDbRepository db) {
-    var usr = new UserModel(fd.Name, fd.Address, fd.Phone, fd.Email);
+    var db_usr = new DatabaseUser(fd.Name, fd.Address, fd.Phone, fd.Email);
     db.Create(usr);
     return new CreateUserSuccessView(usr);
 }
@@ -24,10 +24,10 @@ Things to keep in mind:
 
 * Super happy path. No exception handling.
 * Database could be unavailable.
-* Everyone could sign up at once.
+* Everyone could sign up at once. What happens then?
 * What else?
 
-## Fizzbuzz 2.0!
+## FizzBuzz 2.0!
 
 Marketing comes back and is very excited about the sign up experience at FizzBuzz. But, they'd love it if the new user were sent an email with
 the current FizzBuzz newsletter, and maybe a text message greeting too. Users love that.
@@ -40,6 +40,7 @@ HtmlResult create_user(HtmlFormData fd, IDbRepository db, ITwilioManager tmgr,
                        IEmailService esvc, IObjectBlobService blobs) {
     var usr = new UserModel(fd.Name, fd.Address, fd.Phone, fd.Email);
     try {
+        var db_usr = new DatabaseUser(usr);
         db.Create(usr);
 
         var text_data = new TextMessage(usr, "Welcome to FizzBuzz!");
@@ -60,14 +61,14 @@ Much more going on in version 2.0! What can we say about the additions?
 
 * Several services, any of which could be unavailable.
 * What happens if user is saved in database but the next step fails?
-* Everyone could still sign up at once!
+* Everyone could still sign up at once! Still could overload everything.
 * What else?
 
 ## Can Haz Q
 
 After rolling out FizzBuzz 2.0 the email server went down several times and new users didn't get their copy of the newsletter. Support tickets
-went through the roof and finally the CTO went to the dev team and said "Fix it!". So the team read about message brokers and installed RabbitMQ
-in their environment. Now the code looks like this:
+went through the roof and finally the CTO went to the dev team and said "Fix it!". So the team read about message brokers and installed one in
+their environment. Now the code looks like this:
 
 ```
 HtmlResult create_user(HtmlFormData fd, IMessageQueue mq) {
@@ -81,20 +82,60 @@ HtmlResult create_user(HtmlFormData fd, IMessageQueue mq) {
 That's pretty nice, but what happened to the other actions? Several new services were deployed (Unix daemons / Windows services) that subscribe
 to the `CreateUserEvent` event. Here's the gist of it for the database service and the email service:
 
-```
-void ServiceInit(IMessageQueue mq) {
-    mq.Subscribe("users.create");
-}
+* Database service:
 
-void HandleEvent(event) {
-}
-```
+    ```
+    void ServiceStart(IMessageQueue mq) {
+        mq.Subscribe("user.create");
+    }
+
+    void HandleEvent(IMessageQueueEvent evt, IDbRepository db) {
+        var db_usr = new DatabaseUser(evt.Data);
+        db.Create(db_usr);
+    }
+    ```
+
+* Email service:
+
+    ```
+    void ServiceStart(IMessageQueue mq) {
+        mq.Subscribe("user.create");
+    }
+
+    void HandleEvent(IMessageQueueEvent evt, IEmailService esvc, IObjectBlobService blobs) {
+        var usr = new UserModel(evt.Data);
+        var newsletter = blobs.LoadCurrentNewsletter();
+        var email_data = new EmailMessage(usr, "Welcome to FizzBuzz!", newsletter);
+        esvc.Send(email_data);
+    }
+    ```
+
+It's safe to say that we've gained a lot here:
+
+* Create user sub-operations proceed in parallel, which is great, but there is still an issue with that... what is it?
+* System _should be_ able to handle greater load (the "everyone signs up at the same time scenario"). Why is that?
+* Adding new features should be easier. We could tweet every new user signup! Users love that.
+
+## Wait a second, why a message broker and not ...
+
+Instead of publishing an event, calls to other services (via HTTP, raw TCP, etc) could have been made (in parallel, even). What are some of the advantages of using
+a message broker instead of parallel service requests?
+
+* If the destination service is down in the above scenario, the publisher must take that into account by saving the data and re-trying in the future. With a
+message broker, once the data is published and confirmed, you don't have to worry about what happens after. The data will remain in the
+designated queue(s) until consumed (and acknowledged). The more services you must call, the more you have to keep track. Publishing a single
+message is much easier.
+* Message brokers are designed to keep statistics about message rates. You can learn a lot about your overall system by monitoring this data.
+Logs can be directed through the broker, as well as exceptions. You can get stats about a lot of things for "free".
+* Easy to add multiple instances of queue consumers and have the broker round-robin message delivery to each for scaling out.
+
+## Considerations
+
+We probably want to ensure the user has been created in the database prior to doing other operations. How could this be achieved?
 
 # Links
 
 https://www.cloudamqp.com/blog/2014-12-03-what-is-message-queuing.html
-
-https://www.slideshare.net/old_sound/pivotal-labs
 
 https://stackify.com/message-queues-12-reasons/
 

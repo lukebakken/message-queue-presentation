@@ -1,0 +1,4 @@
+1. System _should be_ able to handle greater load (the "everyone signs up at the same time scenario"). Why is that?
+
+* Broker acts as a buffer for many incoming requests
+* Multiple instances of each event handling service can run and listen to same queue, round-robin message delivery
