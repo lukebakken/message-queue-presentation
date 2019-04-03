@@ -118,7 +118,7 @@ It's safe to say that we've gained a lot here:
 
 ## Wait a second, why a message broker and not ...
 
-Instead of publishing an event, calls to other services (via HTTP, raw TCP, etc) could have been made (in parallel, even). What are some of the advantages of using
+Instead of publishing an event, calls to other services (via HTTP, TCP sockets, etc) could have been made (in parallel, even). What are some of the advantages of using
 a message broker instead of parallel service requests?
 
 * If the destination service is down in the above scenario, the publisher must take that into account by saving the data and re-trying in the future. With a
@@ -128,14 +128,29 @@ message is much easier.
 * Message brokers are designed to keep statistics about message rates. You can learn a lot about your overall system by monitoring this data.
 Logs can be directed through the broker, as well as exceptions. You can get stats about a lot of things for "free".
 * Easy to add multiple instances of queue consumers and have the broker round-robin message delivery to each for scaling out.
+* Need to add a feature without changing data? Just consume from a queue as we have seen above.
 
 ## Considerations
 
 ### Order of operations
 
-We probably want to ensure the user has been created in the database prior to doing other operations. How could this be achieved?
+We probably want to ensure the user has been created in the database prior to doing other operations. How could this be achieved? Here's one
+way:
+
+* Only the database service listens for the `user.create` event.
+* When the DB finishes successfully, `user.created` is published to the broker.
+* Other services listen for a subsequent event, like `user.created`.
 
 ### Async UI
+
+Now that the process of creating a user happens asynchronously, how can the UI be notified when their account is ready? Here are some options I
+can think of -
+
+* Don't notify them via the web UI! This is the simplest option. Return a page stating that their account will be created and they will receive a
+text message and email with information about their new account.
+* But, let's say marketing wants to notify the user on the web page if they remain on it during the account creation. Now that web sockets
+exist, this is somewhat trivial to implement. The `UserCreationInProgressView` page opens a web socket back to the web server and listens for the
+`user.created` event. The RabbitMQ Web STOMP and web MQTT plugins are designed for this use-case.
 
 # Links
 
@@ -144,3 +159,5 @@ https://www.cloudamqp.com/blog/2014-12-03-what-is-message-queuing.html
 https://stackify.com/message-queues-12-reasons/
 
 https://www.cloudamqp.com/blog/2018-12-10-what-its-like-to-bet-your-entire-startup-on-rabbit.html
+
+https://ayende.com/blog/186849-A/production-ready-code-is-much-more-than-error-handling
