@@ -141,6 +141,21 @@ way:
 * When the DB finishes successfully, `user.created` is published to the broker.
 * Other services listen for a subsequent event, like `user.created`.
 
+Example database service code:
+
+```
+void ServiceStart(IMessageQueue mq) {
+    mq.Subscribe("user.create");
+}
+
+void HandleEvent(IMessageQueueEvent evt, IMessageQueue mq, IDbRepository db) {
+    var db_usr = new DatabaseUser(evt.Data);
+    db.Create(db_usr);
+    var event = new UserCreatedEvent(evt.Data);
+    mq.PublishEvent(event);
+}
+```
+
 ### Async UI
 
 Now that the process of creating a user happens asynchronously, how can the UI be notified when their account is ready? Here are some options I
