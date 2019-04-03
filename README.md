@@ -131,7 +131,11 @@ Logs can be directed through the broker, as well as exceptions. You can get stat
 
 ## Considerations
 
+### Order of operations
+
 We probably want to ensure the user has been created in the database prior to doing other operations. How could this be achieved?
+
+### Async UI
 
 # Links
 
